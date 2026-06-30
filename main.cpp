@@ -25,6 +25,12 @@ tuple<bool, bool, bool, bool> boolSplit(const int input) {
     return {one, two, three, four};
 }
 
+// Handles failed moves
+void failedMove(const string& print) {
+    displayBoard(board);
+    throw runtime_error(print);
+}
+
 //Parse Notation
 tuple<string, char, bool, int, char, string> ParseNotation(string input) {
     char promotion;
@@ -45,8 +51,9 @@ tuple<string, char, bool, int, char, string> ParseNotation(string input) {
                 clear = i;
             }
         }
+        if (clear == 0) {failedMove("Failed to find coordinate");}
         input.erase( clear - 1, 2);
-        if (position.empty()) {cout<<"No move location"<<endl; exit(1);}
+        if (position.empty()) {failedMove("No move location");}
 
         // Check for promotion
         if (input.contains('=')) {
@@ -60,7 +67,7 @@ tuple<string, char, bool, int, char, string> ParseNotation(string input) {
                 case 'B':
                 case 'Q':
                     break;
-                default: cout<<"Invalid promotion piece"<<endl; exit(1);
+                default: failedMove("Invalid promotion piece");;
             }
         }
 
@@ -93,15 +100,11 @@ tuple<string, char, bool, int, char, string> ParseNotation(string input) {
     } else {
         disambiguation = input;
     }
+    if (position[0] < 'a' || position[0] > 'h' || position[1] < '1' || position[1] > '8') {failedMove("Out Of Bounds Coordinate");}
 
     return {position, piece, capture, check, promotion, disambiguation};
 }
 
-void failedMove(const string& print) {
-    cout<<print<<endl;
-    displayBoard(board);
-    exit(1);
-}
 // handles empty indexes
 void emptyHandler(const bool silent) {
     for (int a=0; a<8; ++a) {
@@ -173,6 +176,7 @@ void customBoard() {
     emptyHandler(true);
 }
 
+// adds a piece to a location while also clearing a target location effectively moving the piece
 void movePiece(const string& position, char piece, const string& clear, bool white) {
 
     board[position] = {piece, white};
@@ -204,6 +208,7 @@ bool checkLocation(const string& position, char piece, int x_off, int y_off, boo
     return false;
 }
 
+// Make disambiguation always have a full position
 bool verifyDisambiguation(const string& disambiguation, const string& reference) {
     string disambiguated;
 
@@ -237,6 +242,7 @@ bool verifyDisambiguation(const string& disambiguation, const string& reference)
     return false;
 }
 
+// A combination of the checkLocation anf verifyDisambiguation commands
 bool verifyLocation(const string& position, char piece, int x_off, int y_off, bool white, const string& disambiguation) {
     if (checkLocation(position, piece, x_off, y_off, white) && verifyDisambiguation(disambiguation, offsetLocation(position, x_off, y_off))) {
         //debug: cout<<"Debug: "<<offsetLocation(position, x_off, y_off)<<endl;
@@ -245,6 +251,7 @@ bool verifyLocation(const string& position, char piece, int x_off, int y_off, bo
     return false;
 }
 
+// Check if a positon can be captured or moved to
 bool checkClear(const string& position, bool capture, bool white) {
     if (board.at(position).piece == 0 || (capture && board[position].white != white)) {
         return true;
@@ -254,8 +261,7 @@ bool checkClear(const string& position, bool capture, bool white) {
 
 // Exits with message if there are multiple possible pieces with no or not enough disambiguation
 void disambiguationExit() {
-    cout << "Failed to disambiguate!" << endl;
-    exit(4);
+    failedMove("Failed to disambiguate!");
 }
 
 // All pawn movement logic
@@ -292,8 +298,7 @@ string pawnLogic(const string& target, char piece, bool capture, const string& d
             blackEnPassantAvailable = "";
             whiteEnPassantAvailable = "";
         } else {
-            cout<<"Error you must capture on en passant"<<endl;
-            exit(5);
+            failedMove("You must capture on en passant");
         }
     } else {
         for (int i=-1; i<=1; ++i) {
@@ -430,8 +435,7 @@ string queenLogic(const string& target, char piece, bool capture, const string& 
     } else if (!rook.empty() && bishop.empty()) {
         position = rook;
     } else {
-        cout<<"Queen bishop-rook overlap exception."<<endl;
-        exit(8);
+        failedMove("Queen bishop-rook overlap exception.");
     }
 
     return position;
@@ -440,8 +444,7 @@ string queenLogic(const string& target, char piece, bool capture, const string& 
 string kingLogic(const string& target, char piece, bool capture, bool white) {
     string position;
     if ((board.at(target).blackThreat && white) || (board.at(target).whiteThreat && !white)) {
-        cout<<"Error King may not move into check"<<endl;
-        exit(11);
+        failedMove("King may not move into check.");
     }
 
     for (int a=-1; a<=1; ++a) {
@@ -491,8 +494,7 @@ tuple<string, string, string, string> castleLogic(const string& target, bool whi
     }
 
     if ((board.at(longCastleBlocking).blackThreat && white) || (board.at(longCastleBlocking).whiteThreat && !white)) {
-        cout<<"Error King may not move through check"<<endl;
-        exit(11);
+        failedMove("King may not move through check");
     }
 
 
@@ -512,28 +514,25 @@ tuple<string, string, string, string> castleLogic(const string& target, bool whi
         board[castleKing].white != white ||
         board.at(castleRook).piece == 0 ||
         board[castleRook].piece != 'R' ||
-        board[castleRook].white != white) {cout<<"Error piece not found.";exit(9);}
+        board[castleRook].white != white) {failedMove("Piece not found");}
 
     if (board.at(castleKingTarget).piece != 0 ||
-        board.at(castleRookTarget).piece != 0) {cout<<"Error piece blocking castle";exit(9);}
+        board.at(castleRookTarget).piece != 0) {failedMove("Piece Blocking castle");}
 
-    if (Long && board.at(longCastleBlocking).piece != 0) {cout<<"Error piece blocking long castle";exit(9);}
+    if (Long && board.at(longCastleBlocking).piece != 0) {failedMove("Piece blocking long castle");}
 
     if (white) {
         if ((Long && !whiteLongCastle) || (!Long && !whiteShortCastle)) {
-            cout<<"Castle unavailable!";
-            exit(10);
+            failedMove("Castle unavailable");
         }
     } else {
         if ((Long && !blackLongCastle) || (!Long && !blackShortCastle)) {
-            cout<<"Castle unavailable!";
-            exit(10);
+            failedMove("Castle unavailable");
         }
     }
 
     if ((board.at(castleKingTarget).blackThreat && white) || (board.at(castleKingTarget).whiteThreat && !white)) {
-        cout<<"Error King may not move into check"<<endl;
-        exit(11);
+        failedMove("King may not move into check");
     }
 
     return {castleKing, castleKingTarget, castleRook, castleRookTarget};
@@ -550,13 +549,27 @@ bool pawnScan(const string& target, bool white) {
 
 
     //en passant threat detection code
-    if (white && string(1, blackEnPassantAvailable[0]) + '5' == target) {
-        return true;
-    }
-    if (!white && string(1, whiteEnPassantAvailable[0]) + '4' == target) {
-        return true;
+    if (board.at(target).piece == 'P') {
+        if (white && string(1, blackEnPassantAvailable[0]) + '5' == target) {
+
+            for (int i=-1; i<=1; ++i, ++i) {
+                if (board.at(offsetLocation(target, i, 0)).piece == 'P' && board.at(offsetLocation(target, i, 0)).white == white) {
+                    return true;
+
+                }
+            }
+        }
+        if (!white && string(1, whiteEnPassantAvailable[0]) + '4' == target) {
+            for (int i=-1; i<=1; ++i, ++i) {
+                if (board.at(offsetLocation(target, i, 0)).piece == 'P' && board.at(offsetLocation(target, i, 0)).white == white) {
+                    return true;
+
+                }
+            }
+        }
     }
 
+    // regular pawn attack threat detection code
     for (int i=-1; i<=1; ++i, ++i) {
         if (checkLocation(target, 'P', i, y_off, white)) {
             return true;
@@ -721,12 +734,12 @@ void threatAnalysis(map<string, Piece>& simulationBoard) {
 
 }
 
-// find the piece that is being moved
+// find the piece that is being moved and outputs its position
 string findPiece(const string& target, char piece, bool capture, const string& disambiguation, bool white) {
     string position;
 
     // Protect against capturing nothing
-    if (board.at(target).piece == 0 && capture && ((blackEnPassantAvailable.empty() && whiteEnPassantAvailable.empty()) || piece != 'P')) {cout<<"Must not capture an empty square."; exit(6);}
+    if (board.at(target).piece == 0 && capture && ((blackEnPassantAvailable.empty() && whiteEnPassantAvailable.empty()) || piece != 'P')) {failedMove("Must not capture an empty square");}
 
     // reset en passant if a non-pawn is moved
     if (piece != 'P') {
@@ -735,7 +748,7 @@ string findPiece(const string& target, char piece, bool capture, const string& d
     }
 
     switch (piece) {
-        default: cout<<"Error unknown piece!";exit(2);
+        default: failedMove("Unknown piece");;
         case 'P':
             position = pawnLogic(target, piece, capture, disambiguation, white);
             break;
@@ -756,10 +769,11 @@ string findPiece(const string& target, char piece, bool capture, const string& d
             break;
     }
 
-    if (position.empty()) {cout<<"Error no valid piece to move"<<endl; exit(2);}
+    if (position.empty()) {failedMove("No valid piece to move");}
     return position;
 }
 
+// Moves a piece and checks to ensure the move is legal
 string moveCommand(const string& target, char piece, const bool capture, const string& disambiguation, const bool white, const char promotion, int castleAvailable) {
 
     string clear;
@@ -777,8 +791,7 @@ string moveCommand(const string& target, char piece, const bool capture, const s
                 piece = promotion;
 
             } else {
-                cout<<"Invalid promotion exception."<<endl;
-                exit(7);
+                failedMove("Invalid promotion exception");
             }
         }
 
@@ -817,7 +830,7 @@ int main() {
     displayBoard(board);
 
 
-    LOOP:
+    LOOP:{
         emptyHandler(false);
 
         cout<<endl<<"White = "<<WHITE<<endl<<"Control Evaluation: "<<evaluateControl(board)<<endl<<"Input: ";
@@ -857,40 +870,46 @@ int main() {
 
         moveHistory.push_back(input);
 
-        auto [POSITION, PIECE, CAPTURE, CHECK, PROMOTION, DISAMBIGUATE] = ParseNotation(input);
-        string pieceLocation = moveCommand(POSITION, PIECE, CAPTURE, DISAMBIGUATE, WHITE, PROMOTION, castleAvailable);
+        try {
+            auto [POSITION, PIECE, CAPTURE, CHECK, PROMOTION, DISAMBIGUATE] = ParseNotation(input);
+            string pieceLocation = moveCommand(POSITION, PIECE, CAPTURE, DISAMBIGUATE, WHITE, PROMOTION, castleAvailable);
 
-        switch (PIECE) {
-            default: break;
-            case 'C':
-            case 'K':
-                if (WHITE) {
-                    whiteShortCastle = false;
-                    whiteLongCastle  = false;
-                } else {
-                    blackShortCastle = false;
-                    blackLongCastle  = false;
-                }
-                break;
-            case 'R':
-                if (WHITE) {
-                    if (pieceLocation == "h1") {
+            switch (PIECE) {
+                default: break;
+                case 'C':
+                case 'K':
+                    if (WHITE) {
                         whiteShortCastle = false;
-                    } else if (pieceLocation == "a1") {
                         whiteLongCastle  = false;
-                    }
-                } else {
-                    if (pieceLocation == "h8") {
+                    } else {
                         blackShortCastle = false;
-                    } else if (pieceLocation == "a8") {
                         blackLongCastle  = false;
                     }
-                }
-        }
-        castleAvailable = boolMerge(whiteShortCastle, whiteLongCastle, blackShortCastle, blackLongCastle);
+                    break;
+                case 'R':
+                    if (WHITE) {
+                        if (pieceLocation == "h1") {
+                            whiteShortCastle = false;
+                        } else if (pieceLocation == "a1") {
+                            whiteLongCastle  = false;
+                        }
+                    } else {
+                        if (pieceLocation == "h8") {
+                            blackShortCastle = false;
+                        } else if (pieceLocation == "a8") {
+                            blackLongCastle  = false;
+                        }
+                    }
+            }
+            castleAvailable = boolMerge(whiteShortCastle, whiteLongCastle, blackShortCastle, blackLongCastle);
 
-        if (AUTOSWITCH) {WHITE = !WHITE;}
+            if (AUTOSWITCH) {WHITE = !WHITE;}
+        } catch (const exception& e) {
+            cout<<"Error: "<<e.what()<<endl;
+        }
+
 
     goto LOOP;
+    }
 }
 

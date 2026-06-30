@@ -26,7 +26,6 @@ void printBoard(Map& board) {
         }
     }
     cout<<"   A B C D E F G H"<<endl;
-    cout<<"test: "<<board.at("a1").whiteThreat<<" : "<<board.at("a1").blackThreat<<endl;
 }
 
 void displayBoard(const map<string, Piece>& board) {

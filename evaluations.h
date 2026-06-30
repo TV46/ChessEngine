@@ -4,6 +4,6 @@
 
 #include "boardSetup.h"
 
-int evaluateControl(const map<string, Piece>& board);
+int evaluateControl(const map<string, Piece>& simulationBoard);
 
 #endif //CHESSENGINE_EVALUATIONS_H

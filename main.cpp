@@ -12,6 +12,7 @@ string whiteEnPassantAvailable;
 map<string, Piece> board;
 
 vector<string> moveHistory;
+vector<map<string, Piece>> boardHistory;
 
 // Convert 4 bools to an int and vice versa
 int boolMerge(bool one, bool two, bool three, bool four) {
@@ -867,9 +868,17 @@ int main() {
             }
             goto LOOP;
         }
-
+        if (input == "UNDO") {
+            board = boardHistory.back();
+            boardHistory.pop_back();
+            moveHistory.pop_back();
+            WHITE = !WHITE;
+            threatAnalysis(board);
+            displayBoard(board);
+            goto LOOP;
+        }
         moveHistory.push_back(input);
-
+        boardHistory.push_back(board);
         try {
             auto [POSITION, PIECE, CAPTURE, CHECK, PROMOTION, DISAMBIGUATE] = ParseNotation(input);
             string pieceLocation = moveCommand(POSITION, PIECE, CAPTURE, DISAMBIGUATE, WHITE, PROMOTION, castleAvailable);
@@ -905,7 +914,7 @@ int main() {
 
             if (AUTOSWITCH) {WHITE = !WHITE;}
         } catch (const exception& e) {
-            cout<<"Error: "<<e.what()<<endl;
+            cout<<endl<<"Error: \033[91m"<<e.what()<<"\033[0m"<<endl;
         }
 
 

@@ -562,9 +562,11 @@ int pawnScan(const string& target, bool white) {
         }
         if (!white && string(1, whiteEnPassantAvailable[0]) + '4' == target) {
             for (int i=-1; i<=1; ++i, ++i) {
-                if (board.at(offsetLocation(target, i, 0)).piece == 'P' && board.at(offsetLocation(target, i, 0)).white == white) {
-                    count++;
+                if (target[0] + i >= 'a' && target[0] + i <= 'h') {
+                    if (board.at(offsetLocation(target, i, 0)).piece == 'P' && board.at(offsetLocation(target, i, 0)).white == white) {
+                        count++;
 
+                    }
                 }
             }
         }
@@ -701,7 +703,7 @@ map<string, Piece> sightAnalysis(map<string, Piece> simulationBoard) {
 
 }
 
-map<string, Piece> undefendedAnalysis(map<string, Piece> simulationBoard) {
+map<string, Piece> threatenedAnalysis(map<string, Piece> simulationBoard) {
     bool undefended = false;
 
     for (int a=7; a>=0; --a) {
@@ -710,11 +712,11 @@ map<string, Piece> undefendedAnalysis(map<string, Piece> simulationBoard) {
             char x_pos = static_cast<char>('a' + b);
             string index = string(1, x_pos) + string(1, y_pos);
             undefended = false;
-            if ((simulationBoard.at(index).whiteSight <= simulationBoard.at(index).blackSight && simulationBoard.at(index).piece != 0 && simulationBoard.at(index).white) ||
-                (simulationBoard.at(index).blackSight <= simulationBoard.at(index).whiteSight && simulationBoard.at(index).piece != 0 && !simulationBoard.at(index).white)) {
+            if ((simulationBoard.at(index).whiteSight < simulationBoard.at(index).blackSight && simulationBoard.at(index).piece != 0 && simulationBoard.at(index).white) ||
+                (simulationBoard.at(index).blackSight < simulationBoard.at(index).whiteSight && simulationBoard.at(index).piece != 0 && !simulationBoard.at(index).white)) {
                 undefended = true;
             }
-            simulationBoard[index].undefended = undefended;
+            simulationBoard[index].threatened = undefended;
         }
     }
 
@@ -765,7 +767,7 @@ void printUndefended(const map<string, Piece>& printBoard) {
             char x_pos = static_cast<char>('a' + b);
             string index = string(1, x_pos) + string(1, y_pos);
             bool undefended = false;
-            if (printBoard.at(index).undefended) {
+            if (printBoard.at(index).threatened) {
                 colour = "\033[91m";
                 undefended = true;
             } else {
@@ -788,7 +790,7 @@ void writeToBoard(map<string, Piece>& mainBoard, const map<string, Piece>& simul
             else if (pointer == "white") {mainBoard.at(index).white = simulationBoard.at(index).white;}
             else if (pointer == "whiteSight") {mainBoard.at(index).whiteSight = simulationBoard.at(index).whiteSight;}
             else if (pointer == "blackSight") {mainBoard.at(index).blackSight = simulationBoard.at(index).blackSight;}
-            else if (pointer == "undefended") {mainBoard.at(index).undefended = simulationBoard.at(index).undefended;}
+            else if (pointer == "threatened") {mainBoard.at(index).threatened = simulationBoard.at(index).threatened;}
         }
     }
 }
@@ -798,8 +800,8 @@ void runAfterMove() {
     writeToBoard(board, sightAnalysis(board), "whiteSight");
     writeToBoard(board, sightAnalysis(board), "blackSight");
 
-    printUndefended(undefendedAnalysis(board));
-    writeToBoard(board, undefendedAnalysis(board), "undefended");
+    printUndefended(threatenedAnalysis(board));
+    writeToBoard(board, threatenedAnalysis(board), "threatened");
     displayBoard(board);
     cout<<"Control Evaluation: "<<evaluateControl(board)<<endl;
 }
@@ -880,6 +882,12 @@ string moveCommand(const string& target, char piece, const bool capture, const s
 
 
 int main() {
+
+    reset();
+    emptyHandler(true);
+
+    return graphicsTest(board);
+
     cout<<endl;
 
     int castleAvailable = 0b1111;

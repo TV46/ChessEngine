@@ -12,7 +12,7 @@ struct Piece {
     bool white;
     int whiteSight;
     int blackSight;
-    bool undefended;
+    bool threatened;
 };
 
 

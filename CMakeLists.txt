@@ -4,8 +4,8 @@ project(ChessEngine)
 set(CMAKE_CXX_STANDARD 23)
 
 add_executable(ChessEngine main.cpp
-        displayBoard.cpp
-        displayBoard.h
+        frontend.cpp
+        frontend.h
         evaluations.cpp
         evaluations.h
         boardSetup.h)

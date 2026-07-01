@@ -10,8 +10,9 @@ using namespace std;
 struct Piece {
     char piece;
     bool white;
-    bool whiteThreat;
-    bool blackThreat;
+    int whiteSight;
+    int blackSight;
+    bool undefended;
 };
 
 

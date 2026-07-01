@@ -1,5 +1,5 @@
 #include "boardSetup.h"
-#include "displayBoard.h"
+#include "frontend.h"
 #include "evaluations.h"
 #include <iostream>
 #include <cmath>
@@ -30,6 +30,11 @@ tuple<bool, bool, bool, bool> boolSplit(const int input) {
 void failedMove(const string& print) {
     displayBoard(board);
     throw runtime_error(print);
+}
+
+// Exits with message if there are multiple possible pieces with no or not enough disambiguation
+void disambiguationExit() {
+    failedMove("Failed to disambiguate!");
 }
 
 //Parse Notation
@@ -202,8 +207,8 @@ bool checkLocation(const string& position, char piece, int x_off, int y_off, boo
     }
 
     if (board.at(offsetLocation(position, x_off, y_off)).piece != 0 &&
-        board[offsetLocation(position, x_off, y_off)].piece == piece &&
-        board[offsetLocation(position, x_off, y_off)].white == white) {
+        board.at(offsetLocation(position, x_off, y_off)).piece == piece &&
+        board.at(offsetLocation(position, x_off, y_off)).white == white) {
         return true;
     }
     return false;
@@ -254,15 +259,10 @@ bool verifyLocation(const string& position, char piece, int x_off, int y_off, bo
 
 // Check if a positon can be captured or moved to
 bool checkClear(const string& position, bool capture, bool white) {
-    if (board.at(position).piece == 0 || (capture && board[position].white != white)) {
+    if (board.at(position).piece == 0 || (capture && board.at(position).white != white)) {
         return true;
     }
     return false;
-}
-
-// Exits with message if there are multiple possible pieces with no or not enough disambiguation
-void disambiguationExit() {
-    failedMove("Failed to disambiguate!");
 }
 
 // All pawn movement logic
@@ -444,7 +444,7 @@ string queenLogic(const string& target, char piece, bool capture, const string& 
 // All king movement logic
 string kingLogic(const string& target, char piece, bool capture, bool white) {
     string position;
-    if ((board.at(target).blackThreat && white) || (board.at(target).whiteThreat && !white)) {
+    if ((board.at(target).blackSight && white) || (board.at(target).whiteSight && !white)) {
         failedMove("King may not move into check.");
     }
 
@@ -454,7 +454,7 @@ string kingLogic(const string& target, char piece, bool capture, bool white) {
             const char b_char = static_cast<char>(target[1] + b);
             string index = string(1,a_char) + string(1,b_char);
             if (a_char >= 'a' && a_char <= 'h' && b_char >= '1' && b_char <= '8') {
-                if (board.at(index).piece != 0 && board[index].white == white && board[index].piece == piece && (board.at(target).piece == 0 || (board[target].white != white && capture))) {
+                if (board.at(index).piece != 0 && board.at(index).white == white && board.at(index).piece == piece && (board.at(target).piece == 0 || (board.at(target).white != white && capture))) {
                     position = index;
                 }
             }
@@ -494,7 +494,7 @@ tuple<string, string, string, string> castleLogic(const string& target, bool whi
         longCastleBlocking = "b8";
     }
 
-    if ((board.at(longCastleBlocking).blackThreat && white) || (board.at(longCastleBlocking).whiteThreat && !white)) {
+    if ((board.at(longCastleBlocking).blackSight && white) || (board.at(longCastleBlocking).whiteSight && !white)) {
         failedMove("King may not move through check");
     }
 
@@ -511,11 +511,11 @@ tuple<string, string, string, string> castleLogic(const string& target, bool whi
 
     // ensure the pieces being moved exist
     if (board.at(castleKing).piece == 0 ||
-        board[castleKing].piece != 'K' ||
-        board[castleKing].white != white ||
+        board.at(castleKing).piece != 'K' ||
+        board.at(castleKing).white != white ||
         board.at(castleRook).piece == 0 ||
-        board[castleRook].piece != 'R' ||
-        board[castleRook].white != white) {failedMove("Piece not found");}
+        board.at(castleRook).piece != 'R' ||
+        board.at(castleRook).white != white) {failedMove("Piece not found");}
 
     if (board.at(castleKingTarget).piece != 0 ||
         board.at(castleRookTarget).piece != 0) {failedMove("Piece Blocking castle");}
@@ -532,22 +532,22 @@ tuple<string, string, string, string> castleLogic(const string& target, bool whi
         }
     }
 
-    if ((board.at(castleKingTarget).blackThreat && white) || (board.at(castleKingTarget).whiteThreat && !white)) {
+    if ((board.at(castleKingTarget).blackSight && white) || (board.at(castleKingTarget).whiteSight && !white)) {
         failedMove("King may not move into check");
     }
 
     return {castleKing, castleKingTarget, castleRook, castleRookTarget};
 }
 
-
-bool pawnScan(const string& target, bool white) {
+// All pawn threat detection logic
+int pawnScan(const string& target, bool white) {
 
     int y_off = -1;
 
     if (!white) {
         y_off = 1;
     }
-
+    int count = 0;
 
     //en passant threat detection code
     if (board.at(target).piece == 'P') {
@@ -555,7 +555,7 @@ bool pawnScan(const string& target, bool white) {
 
             for (int i=-1; i<=1; ++i, ++i) {
                 if (board.at(offsetLocation(target, i, 0)).piece == 'P' && board.at(offsetLocation(target, i, 0)).white == white) {
-                    return true;
+                    count++;
 
                 }
             }
@@ -563,7 +563,7 @@ bool pawnScan(const string& target, bool white) {
         if (!white && string(1, whiteEnPassantAvailable[0]) + '4' == target) {
             for (int i=-1; i<=1; ++i, ++i) {
                 if (board.at(offsetLocation(target, i, 0)).piece == 'P' && board.at(offsetLocation(target, i, 0)).white == white) {
-                    return true;
+                    count++;
 
                 }
             }
@@ -573,15 +573,16 @@ bool pawnScan(const string& target, bool white) {
     // regular pawn attack threat detection code
     for (int i=-1; i<=1; ++i, ++i) {
         if (checkLocation(target, 'P', i, y_off, white)) {
-            return true;
+            count++;
         }
     }
 
 
-    return false;
+    return count;
 }
-
-bool knightScan(const string& target, bool white) {
+// All knight threat detection logic
+int knightScan(const string& target, bool white) {
+    int count = 0;
     for (int a=0; a<2; ++a) {
         for (int b=1; b<=2; ++b) {
             for (int c=1; c<=2; ++c) {
@@ -589,15 +590,16 @@ bool knightScan(const string& target, bool white) {
                 const int y_off = (2 - a) * static_cast<int>(pow(-1, c));
 
                 if (checkLocation(target, 'N', x_off, y_off, white)) {
-                    return true;
+                    count++;
                 }
             }
         }
     }
-    return false;
+    return count;
 }
-
-bool bishopScan(const string& target, const char piece, bool white) {
+// All bishop threat detection logic
+int bishopScan(const string& target, const char piece, bool white) {
+    int count = 0;
     for (int a=0; a<=1; ++a) {
         for (int b=0; b<=1; ++b) {
             int x_increment = static_cast<int>(pow(-1,b));
@@ -612,15 +614,17 @@ bool bishopScan(const string& target, const char piece, bool white) {
                 // stop check if it comes in contact with a piece that isn't own rook
                 if (board.at(offsetLocation(target, x_off, y_off)).piece != 0 && (board.at(offsetLocation(target, x_off, y_off)).piece != piece || board.at(offsetLocation(target, x_off, y_off)).white != white)) {break;}
                 if (checkLocation(target, piece, x_off, y_off, white)) {
-                    return true;
+                    count++;
                 }
             }
         }
     }
-    return false;
+    return count;
 }
+// All rook threat detection logic
+int rookScan(const string& target, const char piece, bool white) {
 
-bool rookScan(const string& target, const char piece, bool white) {
+    int count = 0;
 
     int x_increment;
     int y_increment;
@@ -643,24 +647,22 @@ bool rookScan(const string& target, const char piece, bool white) {
                 // stop check if it comes in contact with a piece that isn't own rook
                 if (board.at(offsetLocation(target, x_off, y_off)).piece != 0 && (board.at(offsetLocation(target, x_off, y_off)).piece != piece || board.at(offsetLocation(target, x_off, y_off)).white != white)) {break;}
                 if (checkLocation(target, piece,x_off, y_off, white)) {
-                   return true;
+                   count++;
                 }
             }
         }
     }
 
 
-    return false;
+    return count;
 }
-
-bool queenScan(const string& target, bool white) {
-    if (bishopScan(target,'Q', white) || rookScan(target,'Q', white)) {
-        return true;
-    }
-    return false;
+// All queen threat detection logic
+int queenScan(const string& target, bool white) {
+    return bishopScan(target,'Q', white) + rookScan(target,'Q', white);
 }
-
-bool kingScan(const string& target, bool white) {
+// All king threat detection logic
+int kingScan(const string& target, bool white) {
+    int count = 0;
 
     for (int a=-1; a<=1; ++a) {
         for (int b=-1; b<=1; ++b) {
@@ -668,71 +670,138 @@ bool kingScan(const string& target, bool white) {
             const char b_char = static_cast<char>(target[1] + b);
             string index = string(1,a_char) + string(1,b_char);
             if (checkLocation(index,'K', 0, 0, white) && index != target) {
-                return true;
+                count++;
             }
         }
     }
 
-    return false;
+    return count;
+}
+// A combination of all the threat detection logic
+int threatScan(const string& target, bool white) {
+    return pawnScan(target, white) + knightScan(target, white) + bishopScan(target, 'B', white) + rookScan(target, 'R', white) + queenScan(target, white) + kingScan(target, white);
 }
 
-bool threatScan(const string& target, bool white) {
-    if (pawnScan(target, white) ||
-                knightScan(target, white) ||
-                bishopScan(target, 'B', white) ||
-                rookScan(target, 'R', white) ||
-                queenScan(target, white) ||
-                kingScan(target, white)) {
-        return true;
-    }
-    return false;
-}
-
-void threatAnalysis(map<string, Piece>& simulationBoard) {
-
-    string colour;
-
-    cout<<"Threat analysis:"<<endl<<endl;
-
+map<string, Piece> sightAnalysis(map<string, Piece> simulationBoard) {
     for (int a=7; a>=0; --a) {
         char y_pos = static_cast<char>('1' + a);
 
+        for (int b=0; b<8; ++b) {
+            char x_pos = static_cast<char>('a' + b);
+            string index = string(1, x_pos) + string(1, y_pos);
+
+            simulationBoard[index].whiteSight = threatScan(index, true);
+            simulationBoard[index].blackSight = threatScan(index, false);
+
+        }
+
+    }
+
+    return simulationBoard;
+
+}
+
+map<string, Piece> undefendedAnalysis(map<string, Piece> simulationBoard) {
+    bool undefended = false;
+
+    for (int a=7; a>=0; --a) {
+        char y_pos = static_cast<char>('1' + a);
+        for (int b=0; b<8; ++b) {
+            char x_pos = static_cast<char>('a' + b);
+            string index = string(1, x_pos) + string(1, y_pos);
+            undefended = false;
+            if ((simulationBoard.at(index).whiteSight <= simulationBoard.at(index).blackSight && simulationBoard.at(index).piece != 0 && simulationBoard.at(index).white) ||
+                (simulationBoard.at(index).blackSight <= simulationBoard.at(index).whiteSight && simulationBoard.at(index).piece != 0 && !simulationBoard.at(index).white)) {
+                undefended = true;
+            }
+            simulationBoard[index].undefended = undefended;
+        }
+    }
+
+    return simulationBoard;
+
+}
+
+void printSight(const map<string, Piece>& printBoard) {
+
+    string colour;
+
+    for (int a=7; a>=0; --a) {
+        char y_pos = static_cast<char>('1' + a);
         cout<<" "<<y_pos<<" ";
         for (int b=0; b<8; ++b) {
             char x_pos = static_cast<char>('a' + b);
             string index = string(1, x_pos) + string(1, y_pos);
 
-            simulationBoard[index].whiteThreat = false;
-            simulationBoard[index].blackThreat = false;
-
-            if (threatScan(index, false)) {
-                simulationBoard[index].blackThreat = true;
-            }
-
-            if (threatScan(index, true)) {
-                simulationBoard[index].whiteThreat = true;
-            }
-
-            bool whiteThreat = simulationBoard.at(index).whiteThreat;
-            bool blackThreat = simulationBoard.at(index).blackThreat;
-            bool threat = true;
-            if (whiteThreat && blackThreat) {
+            int whiteThreat = printBoard.at(index).whiteSight;
+            int blackThreat = printBoard.at(index).blackSight;
+            int threat = whiteThreat - blackThreat;
+            if (whiteThreat >= 1 && blackThreat >= 1) {
                 colour = "\033[95m";
-            } else if (whiteThreat) {
+            } else if (whiteThreat >= 1) {
                 colour = "\033[94m";
-            }else if (blackThreat){
+            }else if (blackThreat  >= 1){
                 colour = "\033[91m";
             } else {
-                threat = false;
                 colour = "\033[0m";
             }
-            cout<<colour<<threat<<"\033[0m ";
+            cout<<colour;
+            if (threat >= 0) {cout<<" ";}
+            cout<<threat<<"\033[0m ";
+        }
+        cout<<endl<<endl;
+    }
+    cout<<"    A  B  C  D  E  F  G  H"<<endl<<endl;
+}
 
+void printUndefended(const map<string, Piece>& printBoard) {
+
+    string colour;
+
+    for (int a=7; a>=0; --a) {
+        char y_pos = static_cast<char>('1' + a);
+        cout<<" "<<y_pos<<" ";
+        for (int b=0; b<8; ++b) {
+            char x_pos = static_cast<char>('a' + b);
+            string index = string(1, x_pos) + string(1, y_pos);
+            bool undefended = false;
+            if (printBoard.at(index).undefended) {
+                colour = "\033[91m";
+                undefended = true;
+            } else {
+                colour = "\033[0m";
+            }
+            cout<<colour<<undefended<<"\033[0m ";
         }
         cout<<endl;
     }
     cout<<"   A B C D E F G H"<<endl<<endl;
+}
 
+void writeToBoard(map<string, Piece>& mainBoard, const map<string, Piece>& simulationBoard, const string& pointer) {
+    for (int a=7; a>=0; --a) {
+        char y_pos = static_cast<char>('1' + a);
+        for (int b=0; b<8; ++b) {
+            char x_pos = static_cast<char>('a' + b);
+            string index = string(1, x_pos) + string(1, y_pos);
+            if (pointer == "piece") {mainBoard.at(index).piece = simulationBoard.at(index).piece;}
+            else if (pointer == "white") {mainBoard.at(index).white = simulationBoard.at(index).white;}
+            else if (pointer == "whiteSight") {mainBoard.at(index).whiteSight = simulationBoard.at(index).whiteSight;}
+            else if (pointer == "blackSight") {mainBoard.at(index).blackSight = simulationBoard.at(index).blackSight;}
+            else if (pointer == "undefended") {mainBoard.at(index).undefended = simulationBoard.at(index).undefended;}
+        }
+    }
+}
+
+void runAfterMove() {
+    printSight(sightAnalysis(board));
+    writeToBoard(board, sightAnalysis(board), "whiteSight");
+    writeToBoard(board, sightAnalysis(board), "blackSight");
+
+    printUndefended(undefendedAnalysis(board));
+    writeToBoard(board, undefendedAnalysis(board), "undefended");
+    displayBoard(board);
+    cout<<"Control Evaluation: "<<evaluateControl(board)<<endl;
 }
 
 // find the piece that is being moved and outputs its position
@@ -805,14 +874,12 @@ string moveCommand(const string& target, char piece, const bool capture, const s
         movePiece(castleRookTarget , 'R', castleRook, white);
     }
 
-    threatAnalysis(board);
-    displayBoard(board);
+    runAfterMove();
     return clear;
 }
 
 
 int main() {
-
     cout<<endl;
 
     int castleAvailable = 0b1111;
@@ -827,21 +894,20 @@ int main() {
     bool blackLongCastle = true;
 
     reset();
-    threatAnalysis(board);
-    displayBoard(board);
+    runAfterMove();
 
 
     LOOP:{
         emptyHandler(false);
 
-        cout<<endl<<"White = "<<WHITE<<endl<<"Control Evaluation: "<<evaluateControl(board)<<endl<<"Input: ";
+        cout<<endl<<"White = "<<WHITE<<endl<<"Input: ";
         cin>>input;
 
         if (input == "EXIT") {exit(0);}
         if (input == "RESET") {
-            reset(); WHITE = true;
-            threatAnalysis(board);
-            displayBoard(board);
+            reset();
+            WHITE = true;
+            runAfterMove();
 
             whiteShortCastle = true;
             whiteLongCastle  = true;
@@ -851,7 +917,7 @@ int main() {
             goto LOOP;}
         if (input == "CUSTOM") {
             customBoard(); WHITE = true;
-            threatAnalysis(board);
+            printSight(sightAnalysis(board));
             displayBoard(board);
 
             whiteShortCastle = true;
@@ -873,7 +939,7 @@ int main() {
             boardHistory.pop_back();
             moveHistory.pop_back();
             WHITE = !WHITE;
-            threatAnalysis(board);
+            printSight(sightAnalysis(board));
             displayBoard(board);
             goto LOOP;
         }

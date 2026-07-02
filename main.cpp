@@ -883,10 +883,10 @@ string moveCommand(const string& target, char piece, const bool capture, const s
 
 int main() {
 
-    reset();
-    emptyHandler(true);
-
-    return graphicsTest(board);
+    // reset();
+    // emptyHandler(true);
+    //
+    // return graphicsTest(board);
 
     cout<<endl;
 

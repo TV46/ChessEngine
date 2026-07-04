@@ -133,7 +133,6 @@ void emptyHandler(const bool silent) {
 // Reset Board
 void reset() {
     board.clear();
-    moveHistory.clear();
 
     board["a1"] = {'R', true};
     board["b1"] = {'N', true};
@@ -795,26 +794,6 @@ void writeToBoard(map<string, Piece>& mainBoard, const map<string, Piece>& simul
     }
 }
 
-bool kingSafetyVerification(map<string, Piece> simulationBoard, const int white) {
-    writeToBoard(simulationBoard, sightAnalysis(simulationBoard), "whiteSight");
-    writeToBoard(simulationBoard, sightAnalysis(simulationBoard), "blackSight");
-    writeToBoard(simulationBoard, threatenedAnalysis(simulationBoard), "threatened");
-
-
-    for (int a=0; a<8; ++a) {
-        char x_pos = static_cast<char>('a' + a);
-        for (int b=0; b<8; ++b) {
-            char y_pos = static_cast<char>('1' + b);
-            string index = string(1, x_pos) + string(1, y_pos);
-            if (simulationBoard.at(index).threatened && simulationBoard.at(index).piece == 'K' && simulationBoard.at(index).white == white) {
-                return true;
-            }
-
-        }
-    }
-    return false;
-}
-
 void runAfterMove() {
     printSight(sightAnalysis(board));
     writeToBoard(board, sightAnalysis(board), "whiteSight");
@@ -899,6 +878,28 @@ string moveCommand(const string& target, char piece, const bool capture, const s
     return clear;
 }
 
+bool kingSafetyVerification(map<string, Piece> simulationBoard, const int white) {
+    writeToBoard(simulationBoard, sightAnalysis(simulationBoard), "whiteSight");
+    writeToBoard(simulationBoard, sightAnalysis(simulationBoard), "blackSight");
+
+
+    for (int a=0; a<8; ++a) {
+        char x_pos = static_cast<char>('a' + a);
+        for (int b=0; b<8; ++b) {
+            char y_pos = static_cast<char>('1' + b);
+            string index = string(1, x_pos) + string(1, y_pos);
+            if (simulationBoard.at(index).blackSight && simulationBoard.at(index).piece == 'K' && simulationBoard.at(index).white == white && white == true) {
+                return true;
+            }
+            if (simulationBoard.at(index).whiteSight && simulationBoard.at(index).piece == 'K' && simulationBoard.at(index).white == white && white == false) {
+                return true;
+            }
+
+        }
+    }
+    return false;
+}
+
 
 int main() {
 
@@ -929,6 +930,7 @@ int main() {
 
         cout<<endl<<"White = "<<WHITE<<endl<<"Input: ";
         cin>>input;
+        moveHistory.push_back(input);
 
         if (input == "EXIT") {exit(0);}
         if (input == "RESET") {
@@ -964,13 +966,11 @@ int main() {
         if (input == "UNDO") {
             board = boardHistory.back();
             boardHistory.pop_back();
-            moveHistory.pop_back();
             WHITE = !WHITE;
             printSight(sightAnalysis(board));
             displayBoard(board);
             goto LOOP;
         }
-        moveHistory.push_back(input);
         boardHistory.push_back(board);
         try {
             auto [POSITION, PIECE, CAPTURE, CHECK, PROMOTION, DISAMBIGUATE] = ParseNotation(input);
@@ -1007,6 +1007,7 @@ int main() {
             castleAvailable = boolMerge(whiteShortCastle, whiteLongCastle, blackShortCastle, blackLongCastle);
 
             if (kingSafetyVerification(board, WHITE)) {
+                board = boardHistory.back();
                 throw runtime_error("Move checks own king");
             }
             runAfterMove();

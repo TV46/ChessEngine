@@ -795,6 +795,26 @@ void writeToBoard(map<string, Piece>& mainBoard, const map<string, Piece>& simul
     }
 }
 
+bool kingSafetyVerification(map<string, Piece> simulationBoard, const int white) {
+    writeToBoard(simulationBoard, sightAnalysis(simulationBoard), "whiteSight");
+    writeToBoard(simulationBoard, sightAnalysis(simulationBoard), "blackSight");
+    writeToBoard(simulationBoard, threatenedAnalysis(simulationBoard), "threatened");
+
+
+    for (int a=0; a<8; ++a) {
+        char x_pos = static_cast<char>('a' + a);
+        for (int b=0; b<8; ++b) {
+            char y_pos = static_cast<char>('1' + b);
+            string index = string(1, x_pos) + string(1, y_pos);
+            if (simulationBoard.at(index).threatened && simulationBoard.at(index).piece == 'K' && simulationBoard.at(index).white == white) {
+                return true;
+            }
+
+        }
+    }
+    return false;
+}
+
 void runAfterMove() {
     printSight(sightAnalysis(board));
     writeToBoard(board, sightAnalysis(board), "whiteSight");
@@ -876,7 +896,6 @@ string moveCommand(const string& target, char piece, const bool capture, const s
         movePiece(castleRookTarget , 'R', castleRook, white);
     }
 
-    runAfterMove();
     return clear;
 }
 
@@ -984,9 +1003,15 @@ int main() {
                         }
                     }
             }
+
             castleAvailable = boolMerge(whiteShortCastle, whiteLongCastle, blackShortCastle, blackLongCastle);
 
+            if (kingSafetyVerification(board, WHITE)) {
+                throw runtime_error("Move checks own king");
+            }
+            runAfterMove();
             if (AUTOSWITCH) {WHITE = !WHITE;}
+
         } catch (const exception& e) {
             cout<<endl<<"Error: \033[91m"<<e.what()<<"\033[0m"<<endl;
         }
